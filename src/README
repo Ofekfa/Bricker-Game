@@ -1,0 +1,63 @@
+ofekfa
+206626145
+
+1.  I chose the first option - send the instance returned by the gameObjects() method to the
+    BasicCollisionStrategy constructor, save the instance as a field, and use it to delete the first
+    parameter in the onCollision method.
+    pros: Keeps dependencies small and explicit; each strategy only knows the one thing it
+          needs—how to add/remove objects—so it stays focused another pro is
+          that BrickerGameManager doesn’t become something that everything depends on.
+    Cons: The strategy must also know the brick’s layer or receive a remover helper. If a strategy later
+          needs more capabilities (spawn assets, play sounds), theres a need to inject those extra minimal
+          dependencies too.
+
+2.  Graphical hearts
+    LivesUI maintains an array of GameObject hearts. Each heart is created as a GameObject with the heart
+    renderable and placed in camera coordinates so it stays fixed on screen. When the player loses a life,
+    LivesUI removes one heart GameObject from the array and from the gameObjects
+    Numeric counter
+    LivesUI uses a TextRenderable to show the numeric lives value. updateLives sets the displayed string
+    and also changes the color according to the number of lives (green/yellow/red).
+    The purpose of the LivesUI class is to encapsulate all the logic related to displaying the player's
+    lives, and it interacts with the game by updating the visual representation whenever the number of
+    lives changes.
+
+3.  Additional balls - when a brick with the additional-balls special is hit.
+    AdditionalBallsStrategy: strategy that wraps a base strategy; on collision it first calls the base
+    (so removal + decrement happen once) then creates N Puck instances and adds them to the game.
+    The strategy uses the provided GameObjectCollection and image/sound readers to create and register Puck
+    objects.
+    Base removal is handled by the base strategy to avoid double-decrement.
+
+    Exploding bricks - when a brick with the exploding special is hit.
+    The hit brick is removed, then the strategy triggers removal (explosion) of adjacent bricks.
+    Adjacent bricks’ own strategies run, enabling chain reactions.
+    ExplodingBrickStrategy: strategy that implements explosion logic: plays an explosion sound, executes the
+    base strategy for the original brick (so removal + counter decrement happen once), looks up neighbors in
+    the Brick[][] grid, clears their grid entries to avoid reprocessing, and calls each neighbor’s
+    onCollisionEnter(...) to delegate removal and any special behavior to that brick’s own strategy.
+
+    Extra paddle - when a brick with the extra-paddle special is hit.
+    Spawn a temporary extra paddle that can take a limited number of hits, then remove itself.
+    ExtraPaddleStrategy: on collision it executes the base removal then, if no extra paddle exists in the
+    game, creates a new ExtraPaddle and registers it. The strategy uses a global presence check to ensure
+    only one extra paddle exists at a time. the strategy uses BasicCollisionStrategy as base so the brick
+    removal and bricksLeft decrement are still handled by the base.
+
+    Return life - when a brick with the return-life special is hit.
+    Spawn a falling heart that drops toward the paddle; if collected by the original paddle, it restores one
+    life (clamped to the max).
+    ReturnLifeStrategy: executes the base removal and then spawns a FallingHeart at the brick’s center.
+    FallingHeart: a small falling GameObject that: only collides with the original paddle (shouldCollideWith
+    uses reference equality), calls a decoupled callback (LifeRestoreCallback.restoreLife()) when collected,
+    removes itself either on collection or when it falls off screen.
+
+4.  With a strategy pattern and a factory: every brick has a CollisionStrategy that defines its behavior on
+    hit. Decorator — special behaviors decorate or wrap a base strategy so extra effects happen in addition
+    to removal. when a brick needs multiple special behaviors, a small sequence of strategies (the
+    CombinedCollisionStrategy) that runs the real-removal base exactly once is built, and then runs each
+    special effect. To ensure inner/child behaviors do not remove the brick (and thus avoid
+    double-decrementing the bricks counter), those child strategies are constructed with a
+    NoOpCollisionStrategy base — a do-nothing base whose only purpose is to prevent removal when the special
+    effect executes. the factory — StrategyFactory centralizes the random drawing and construction logic so
+    no more than 3 behaviors "live" in one place.
